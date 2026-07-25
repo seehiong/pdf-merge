@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="styles.css">
     <!-- pdf-lib for client-side merging -->
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- pdf.js for rendering page thumbnails -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -25,15 +27,20 @@
                         <span id="theme-icon">☀</span>
                     </button>
                 </div>
-                <p class="subtitle">Combine multiple PDF files into one, securely in your browser.</p>
+                <p class="subtitle">Combine multiple PDF files or images into one, securely in your browser.</p>
+                
+                <div class="tab-bar">
+                    <button id="tab-files" class="tab-btn active">📁 File Manager</button>
+                    <button id="tab-pages" class="tab-btn" disabled>🧩 Page Organizer</button>
+                </div>
             </header>
 
             <section class="upload-section">
                 <div id="drop-zone" class="upload-area">
                     <span class="upload-icon">📄</span>
-                    <span class="upload-text-main">Click or Drag & Drop PDFs here</span>
-                    <span class="upload-text-sub">Supports multiple PDF files</span>
-                    <input type="file" id="file-input" multiple accept="application/pdf">
+                    <span class="upload-text-main">Click or Drag & Drop here</span>
+                    <span class="upload-text-sub">Supports PDF, PNG, JPEG, JPG files</span>
+                    <input type="file" id="file-input" multiple accept="application/pdf, image/png, image/jpeg, image/jpg">
                 </div>
             </section>
 
@@ -45,11 +52,100 @@
                 </div>
             </section>
 
-            <section id="file-list-section" style="display: none;">
-                <div id="file-list" class="file-list">
-                    <!-- Files will be listed here -->
+            <!-- Workspace Content (Visible only when files are loaded) -->
+            <section id="workspace-content" style="display: none;">
+                <!-- Panel 1: File List -->
+                <div id="panel-files" class="tab-panel active">
+                    <div id="file-list" class="file-list">
+                        <!-- Files will be listed here -->
+                    </div>
                 </div>
 
+                <!-- Panel 2: Page Organizer -->
+                <div id="panel-pages" class="tab-panel" style="display: none;">
+                    <div class="organizer-help">
+                        💡 Drag & drop page cards to reorder. Hover to rotate or delete individual pages.
+                    </div>
+                    <div id="page-grid" class="page-grid">
+                        <!-- Page thumbnails will be generated here -->
+                    </div>
+                </div>
+
+                <!-- Shared Settings (Page Layout & Numbering) -->
+                <div id="settings-accordion" class="settings-accordion">
+                    <!-- Sizing Accordion -->
+                    <details>
+                        <summary class="settings-summary">
+                            <span class="summary-title">📏 Page Sizing & Layout</span>
+                            <span class="summary-toggle-icon">▾</span>
+                        </summary>
+                        <div class="settings-content">
+                            <div class="settings-grid">
+                                <div class="settings-group">
+                                    <label for="page-size-style">Page Sizing</label>
+                                    <select id="page-size-style" class="settings-select">
+                                        <option value="original" selected>Original Size (Retain source sizes)</option>
+                                        <option value="a4">Uniform A4 Size (595 × 842 pt)</option>
+                                        <option value="letter">Uniform US Letter Size (612 × 792 pt)</option>
+                                    </select>
+                                </div>
+                                <div class="settings-group">
+                                    <label for="page-size-fit">Scale Option</label>
+                                    <select id="page-size-fit" class="settings-select">
+                                        <option value="fit" selected>Fit (Maintain Aspect Ratio with margins)</option>
+                                        <option value="stretch">Stretch (Force fill page dimensions)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Page Numbering Accordion -->
+                    <details>
+                        <summary class="settings-summary">
+                            <span class="summary-title">🔢 Add Page Numbers</span>
+                            <span class="summary-toggle-icon">▾</span>
+                        </summary>
+                        <div class="settings-content">
+                            <div class="settings-grid">
+                                <div class="settings-group">
+                                    <label for="page-num-style">Format</label>
+                                    <select id="page-num-style" class="settings-select">
+                                        <option value="none">None (No Page Numbers)</option>
+                                        <option value="page-x">Page X</option>
+                                        <option value="page-x-y">Page X of Y</option>
+                                        <option value="x">X</option>
+                                        <option value="x-y">X / Y</option>
+                                    </select>
+                                </div>
+                                <div class="settings-group">
+                                    <label for="page-num-pos">Position</label>
+                                    <select id="page-num-pos" class="settings-select">
+                                        <option value="bottom-right">Bottom Right</option>
+                                        <option value="bottom-center" selected>Bottom Center</option>
+                                        <option value="bottom-left">Bottom Left</option>
+                                        <option value="top-right">Top Right</option>
+                                        <option value="top-center">Top Center</option>
+                                        <option value="top-left">Top Left</option>
+                                    </select>
+                                </div>
+                                <div class="settings-group">
+                                    <label for="page-num-color">Text Color</label>
+                                    <div class="color-picker-wrapper">
+                                        <input type="color" id="page-num-color" class="color-picker" value="#94a3b8">
+                                        <input type="text" id="page-num-color-text" class="color-text" value="#94a3b8" maxlength="7">
+                                    </div>
+                                </div>
+                                <div class="settings-group">
+                                    <label for="page-num-size">Font Size (pt)</label>
+                                    <input type="number" id="page-num-size" class="settings-input" value="10" min="6" max="24">
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Shared Summary Bar -->
                 <div id="summary-bar" class="summary-bar">
                     <div class="summary-stats">
                         <span id="summary-files" class="summary-highlight-indigo"></span>
@@ -83,6 +179,24 @@
                 <div id="status-message" class="status-message"></div>
             </section>
         </main>
+    </div>
+
+    <!-- Password Unlock Modal -->
+    <div id="password-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>🔒 Password Required</h3>
+            </div>
+            <div class="modal-body">
+                <p id="password-modal-desc">The file is password protected. Enter password to open it.</p>
+                <input type="password" id="password-input" class="password-input" placeholder="Password" autofocus>
+                <div id="password-error" class="password-error-message" style="display: none;">Incorrect password. Try again.</div>
+            </div>
+            <div class="modal-actions">
+                <button id="password-cancel-btn" class="btn btn-secondary">Cancel</button>
+                <button id="password-submit-btn" class="btn btn-primary">Unlock</button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
